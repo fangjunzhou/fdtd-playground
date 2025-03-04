@@ -1,5 +1,5 @@
 {
-  description = "A simple FDTD implementation in JAX";
+  description = "A simple FDTD playground";
 
   inputs =
     {

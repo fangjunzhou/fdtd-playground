@@ -1,3 +1,3 @@
-# FDTD JAX
+# FDTD Playground
 
-A simple FDTD implementation in JAX
+A simple FDTD playground
