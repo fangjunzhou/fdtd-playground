@@ -1,5 +1,5 @@
 [project]
-name = "fdtd-jax"
+name = "fdtd-playground"
 version = "0.1.0"
 description = "A simple FDTD implementation in JAX"
 readme = "README.md"
