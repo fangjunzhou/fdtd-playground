@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 @ti.data_oriented
 class Grid2D:
     # Staggered grid for pressure and velocity.
+    alpha_grid: ti.Field
     p_grid: ti.Field
     vx_grid: ti.Field
     vy_grid: ti.Field
@@ -30,6 +31,7 @@ class Grid2D:
         self.dt = dx / (ti.sqrt(2) * c)
 
         sx, sy = size
+        self.alpha_grid = ti.field(ti.f32, shape=(sx, sy))
         self.p_grid = ti.field(ti.f32, shape=(sx, sy))
         self.vx_grid = ti.field(ti.f32, shape=(sx + 1, sy))
         self.vy_grid = ti.field(ti.f32, shape=(sx, sy + 1))
@@ -39,8 +41,8 @@ def main():
     # Initialize taichi.
     ti.init(arch=ti.gpu)
     # Construct scene.
-    scene = Grid2D((512, 512), 0.01)
-    logger.info(f"Scene grid shape: {scene.grid.shape}.")
+    grid = Grid2D((512, 512), 0.01)
+    logger.info(f"Scene grid shape: {grid.grid.shape}.")
 
 if __name__ == "__main__":
     main()

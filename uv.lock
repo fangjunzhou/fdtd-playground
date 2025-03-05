@@ -359,6 +359,8 @@ dependencies = [
     { name = "jax" },
     { name = "jupyterlab" },
     { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
     { name = "taichi" },
 ]
 
@@ -367,6 +369,8 @@ requires-dist = [
     { name = "jax", specifier = ">=0.5.0" },
     { name = "jupyterlab", specifier = ">=4.3.5" },
     { name = "matplotlib", specifier = ">=3.10.0" },
+    { name = "numpy", specifier = ">=2.2.3" },
+    { name = "scipy", specifier = ">=1.15.2" },
     { name = "taichi", specifier = ">=1.7.3" },
 ]
 

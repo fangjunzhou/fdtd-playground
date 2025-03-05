@@ -40,14 +40,14 @@ def main():
     time: float = args.time
 
     # Simulation setup.
-    scene = Grid2D(grid_size, cell_size)
+    grid = Grid2D(grid_size, cell_size)
 
     disp_buf = ti.field(ti.math.vec3, shape=grid_size)
     @ti.kernel
     def render_p_field():
         """Render pressure field."""
         for i, j in disp_buf:
-            disp_buf[i, j] = ti.math.vec3(scene.p_grid[i, j])
+            disp_buf[i, j] = ti.math.vec3(grid.p_grid[i, j])
 
     gui = ti.GUI("FDTD Simulation", res=grid_size) # pyright: ignore
     while gui.running:
