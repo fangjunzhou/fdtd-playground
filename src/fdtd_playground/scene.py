@@ -1,46 +1,15 @@
-import logging
-from typing import Tuple
+from typing import List
 import taichi as ti
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from fdtd_playground.grid import Grid2D
+from fdtd_playground.object import Object
 
-@ti.data_oriented
+
 class Scene2D:
-    # Staggered grid for pressure and velocity.
-    p_grid: ti.Field
-    vx_grid: ti.Field
-    vy_grid: ti.Field
-    # Simulation grid size.
-    size: Tuple[int, int]
-    # Simulation cell size.
-    dx: ti.f32
-    # Sound wave speed.
-    c: ti.f32
-    # Time step size.
-    dt: ti.f32
+    # Scene grid.
+    grid: Grid2D
+    # Scene objects.
+    objects: List[Object]
 
-    def __init__(self,
-                 size: Tuple[int, int],
-                 dx: ti.f32,
-                 c: ti.f32 = 340) -> None:
-        self.size = size
-        self.dx = dx
-        self.c = c
-        self.dt = dx / (ti.sqrt(2) * c)
-
-        sx, sy = size
-        self.p_grid = ti.field(ti.f32, shape=(sx, sy))
-        self.vx_grid = ti.field(ti.f32, shape=(sx + 1, sy))
-        self.vy_grid = ti.field(ti.f32, shape=(sx, sy + 1))
-
-
-def main():
-    # Initialize taichi.
-    ti.init(arch=ti.gpu)
-    # Construct scene.
-    scene = Scene2D((512, 512), 0.01)
-    logger.info(f"Scene grid shape: {scene.grid.shape}.")
-
-if __name__ == "__main__":
-    main()
+    # Simulation states.
+    t: ti.f32 = 0
