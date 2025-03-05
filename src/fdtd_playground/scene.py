@@ -5,17 +5,12 @@ import taichi as ti
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@ti.dataclass
-class Cell2D:
-    # Cell pressure.
-    p: ti.f32
-    # Staggered velocity
-    v: ti.math.vec2
-
 @ti.data_oriented
 class Scene2D:
     # Staggered grid for pressure and velocity.
-    grid: ti.StructField
+    p_grid: ti.Field
+    vx_grid: ti.Field
+    vy_grid: ti.Field
     # Simulation grid size.
     size: Tuple[int, int]
     # Simulation cell size.
@@ -34,7 +29,10 @@ class Scene2D:
         self.c = c
         self.dt = dx / (ti.sqrt(2) * c)
 
-        self.grid = Cell2D.field(shape=size)
+        sx, sy = size
+        self.p_grid = ti.field(ti.f32, shape=(sx, sy))
+        self.vx_grid = ti.field(ti.f32, shape=(sx + 1, sy))
+        self.vy_grid = ti.field(ti.f32, shape=(sx, sy + 1))
 
 
 def main():
