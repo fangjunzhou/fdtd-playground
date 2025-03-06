@@ -39,9 +39,11 @@ class Circle(Object):
     def load_audio_sample(self, sample_rate: int, samples: jnp.ndarray):
         self.sample_rate = sample_rate
         self.samples = samples
+        self.integrate_velocity()
 
     def load_audio_file(self, audio_path: pathlib.Path):
         self.sample_rate, self.samples = read(audio_path)
+        self.integrate_velocity()
 
     def integrate_velocity(self, drift_correction: int = 8192, avg_sample: int = 32):
         # Numerical integration.
@@ -143,7 +145,6 @@ def main():
     circle = Circle(key_frames, center, radius)
     # Test audio.
     circle.load_audio_file(audio_path)
-    circle.integrate_velocity()
     num_samples = circle.samples.size
     audio_length = num_samples / circle.sample_rate
     samples_t = jnp.linspace(0, audio_length, num_samples)

@@ -58,6 +58,13 @@ class Scene2D:
         clear_mask_velocity()
         apply_velocity()
 
+    def step(self):
+        # Rasterize geometries.
+        self.rasterize(self.t)
+        # Apply boundary velocity.
+        self.apply_velocity()
+        self.t += self.grid.dt
+
 
 
 def main():
@@ -94,7 +101,6 @@ def main():
     circle = Circle(key_frames, center, radius)
     # Test audio.
     circle.load_audio_file(audio_path)
-    circle.integrate_velocity()
     scene.objects.append(circle)
 
     disp_buf = ti.field(ti.math.vec3, shape=SIZE)
