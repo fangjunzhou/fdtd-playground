@@ -19,15 +19,37 @@ class Scene2D:
     objects: List[Object]
 
     # Solver states.
-    damping_factor: float
+    damping_grid: ti.Field
 
     # Simulation states.
     t: ti.f32 = 0
 
-    def __init__(self, grid: Grid2D, damping_factor: float = 0) -> None:
+    def __init__(self,
+                 grid: Grid2D,
+                 damp_factor: float = 0,
+                 pml: int = 8,
+                 pml_damp: float = 0.02) -> None:
         self.grid = grid
         self.objects = []
-        self.damping_factor = damping_factor
+        self.damping_grid = ti.field(ti.f32, shape=grid.size)
+
+        @ti.kernel
+        def setup_damping_grid():
+            sx, sy = self.grid.size
+            for i, j in self.damping_grid:
+                dl = i
+                dr = sx - i
+                db = j
+                dt = sy - j
+                d = ti.math.min(dl, dr, db, dt)
+                # PML
+                if d < 8:
+                    alpha = d / 8
+                    self.damping_grid[i, j] = alpha * damp_factor + (1 - alpha) * pml_damp
+                else:
+                    self.damping_grid[i, j] = damp_factor
+
+        setup_damping_grid()
 
 
     def rasterize(self, t: float):
@@ -68,14 +90,15 @@ class Scene2D:
     def update_velocity(self):
         @ti.kernel
         def update_velocity():
-            sigma = self.damping_factor
             dx = self.grid.dx
             dt = self.grid.dt
             sx, sy = self.grid.size
             for i, j in ti.ndrange((1, sx), (0, sy)):
+                sigma = self.damping_grid[i, j]
                 vx = self.grid.vx_grid[i, j]
                 self.grid.vx_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i-1, j])/dx * dt + sigma * vx
             for i, j in ti.ndrange((0, sx), (1, sy)):
+                sigma = self.damping_grid[i, j]
                 vy = self.grid.vy_grid[i, j]
                 self.grid.vy_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i, j-1])/dx * dt + sigma * vy
 
@@ -85,11 +108,11 @@ class Scene2D:
     def update_pressure(self):
         @ti.kernel
         def update_pressure():
-            sigma = self.damping_factor
             dt = self.grid.dt
             c = self.grid.c
             sx, sy = self.grid.size
             for i, j in ti.ndrange((0, sx), (0, sy)):
+                sigma = self.damping_grid[i, j]
                 p = self.grid.p_grid[i, j]
                 dx = self.grid.vx_grid[i+1, j] - self.grid.vx_grid[i, j]
                 dy = self.grid.vy_grid[i, j+1] - self.grid.vy_grid[i, j]

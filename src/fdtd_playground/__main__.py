@@ -60,7 +60,7 @@ def main():
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
-    scene = Scene2D(grid, 0.0005)
+    scene = Scene2D(grid)
 
     # Add audio source.
     key_frames = jnp.array([0, 1], dtype=jnp.float32)
