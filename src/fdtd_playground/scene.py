@@ -25,6 +25,7 @@ class Scene2D:
         self.grid = grid
         self.objects = []
 
+
     def rasterize(self, t: float):
         @ti.kernel
         def clear_alpha():
@@ -35,6 +36,7 @@ class Scene2D:
         for obj in self.objects:
             obj.rasterize_alpha(self.grid, t)
             obj.rasterize(self.grid, t)
+
 
     def apply_velocity(self):
         @ti.kernel
@@ -58,11 +60,42 @@ class Scene2D:
         clear_mask_velocity()
         apply_velocity()
 
+
+    def update_velocity(self):
+        @ti.kernel
+        def update_velocity():
+            dx = self.grid.dx
+            dt = self.grid.dt
+            sx, sy = self.grid.size
+            for i, j in ti.ndrange((1, sx), (0, sy)):
+                self.grid.vx_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i-1, j])/dx * dt
+            for i, j in ti.ndrange((0, sx), (1, sy)):
+                self.grid.vy_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i, j-1])/dx * dt
+
+        update_velocity()
+
+    def update_pressure(self):
+        @ti.kernel
+        def update_pressure():
+            dt = self.grid.dt
+            c = self.grid.c
+            sx, sy = self.grid.size
+            for i, j in ti.ndrange((0, sx), (0, sy)):
+                dx = self.grid.vx_grid[i+1, j] - self.grid.vx_grid[i, j]
+                dy = self.grid.vy_grid[i, j+1] - self.grid.vy_grid[i, j]
+                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt
+        update_pressure()
+
+
     def step(self):
         # Rasterize geometries.
         self.rasterize(self.t)
+        # Update velocity.
+        self.update_velocity()
         # Apply boundary velocity.
         self.apply_velocity()
+        # Update pressure.
+        self.update_pressure()
         self.t += self.grid.dt
 
 

@@ -20,14 +20,14 @@ def main():
         "--grid",
         help="Simulation grid size.",
         type=lambda s: tuple(map(int, s.split(','))),
-        default=(512, 512)
+        default=(256, 256)
     )
     parser.add_argument(
         "-c",
         "--cell",
         help="Simulation cell size.",
         type=float,
-        default=5/512
+        default=5/256
     )
     parser.add_argument(
         "-t",
@@ -69,11 +69,26 @@ def main():
     circle.load_audio_file(audio_path)
     scene.objects.append(circle)
 
+    # Display.
+    disp_buf = ti.field(ti.math.vec3, shape=grid_size)
+
+    @ti.kernel
+    def render():
+        # Render pressure field
+        for i, j in disp_buf:
+            disp_buf[i, j] = ti.math.vec3(grid.p_grid[i, j]/10)
+        # Render velocity field
+        for i, j in disp_buf:
+            if grid.alpha_grid[i, j] == 1:
+                v = grid.v_grid[i, j]
+                disp_buf[i, j] = ti.math.vec3((v.x + 1)/2, (v.y + 1)/2, 0)
+
     gui = ti.GUI("FDTD Simulation", res=grid_size) # pyright: ignore
     while gui.running:
         if scene.t < time:
             scene.step()
-        gui.set_image(grid.v_grid)
+        render()
+        gui.set_image(disp_buf)
         gui.show()
 
 if __name__ == "__main__":
