@@ -18,12 +18,16 @@ class Scene2D:
     # Scene objects.
     objects: List[Object]
 
+    # Solver states.
+    damping_factor: float
+
     # Simulation states.
     t: ti.f32 = 0
 
-    def __init__(self, grid: Grid2D) -> None:
+    def __init__(self, grid: Grid2D, damping_factor: float = 0) -> None:
         self.grid = grid
         self.objects = []
+        self.damping_factor = damping_factor
 
 
     def rasterize(self, t: float):
@@ -64,26 +68,32 @@ class Scene2D:
     def update_velocity(self):
         @ti.kernel
         def update_velocity():
+            sigma = self.damping_factor
             dx = self.grid.dx
             dt = self.grid.dt
             sx, sy = self.grid.size
             for i, j in ti.ndrange((1, sx), (0, sy)):
-                self.grid.vx_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i-1, j])/dx * dt
+                vx = self.grid.vx_grid[i, j]
+                self.grid.vx_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i-1, j])/dx * dt + sigma * vx
             for i, j in ti.ndrange((0, sx), (1, sy)):
-                self.grid.vy_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i, j-1])/dx * dt
+                vy = self.grid.vy_grid[i, j]
+                self.grid.vy_grid[i, j] -= (self.grid.p_grid[i, j] - self.grid.p_grid[i, j-1])/dx * dt + sigma * vy
 
         update_velocity()
+
 
     def update_pressure(self):
         @ti.kernel
         def update_pressure():
+            sigma = self.damping_factor
             dt = self.grid.dt
             c = self.grid.c
             sx, sy = self.grid.size
             for i, j in ti.ndrange((0, sx), (0, sy)):
+                p = self.grid.p_grid[i, j]
                 dx = self.grid.vx_grid[i+1, j] - self.grid.vx_grid[i, j]
                 dy = self.grid.vy_grid[i, j+1] - self.grid.vy_grid[i, j]
-                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt
+                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p
         update_pressure()
 
 

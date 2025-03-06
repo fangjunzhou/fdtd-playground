@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=2.2.3",
     "scipy>=1.15.2",
     "taichi>=1.7.3",
+    "tqdm>=4.67.1",
 ]
 
 [tool.pyright]

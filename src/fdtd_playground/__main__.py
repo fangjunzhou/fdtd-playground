@@ -3,6 +3,7 @@ from typing import Tuple
 import taichi as ti
 import jax.numpy as jnp
 import argparse
+from tqdm import tqdm
 
 from fdtd_playground.grid import Grid2D
 from fdtd_playground.object import Circle
@@ -20,14 +21,14 @@ def main():
         "--grid",
         help="Simulation grid size.",
         type=lambda s: tuple(map(int, s.split(','))),
-        default=(256, 256)
+        default=(128, 128)
     )
     parser.add_argument(
         "-c",
         "--cell",
         help="Simulation cell size.",
         type=float,
-        default=5/256
+        default=1/128
     )
     parser.add_argument(
         "-t",
@@ -42,6 +43,12 @@ def main():
         help="Audio wav file.",
         type=pathlib.Path,
     )
+    parser.add_argument(
+        "-d",
+        "--display",
+        help="Enable display",
+        action="store_true",
+    )
     args = parser.parse_args()
 
     # Simulation parameters.
@@ -49,24 +56,36 @@ def main():
     cell_size: float = args.cell
     time: float = args.time
     audio_path: pathlib.Path = args.open
+    display:bool = args.display
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
-    scene = Scene2D(grid)
+    scene = Scene2D(grid, 0.0005)
 
     # Add audio source.
     key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
-        [2.5, 2],
-        [2.5, 3]
+        [0.5, 0.4],
+        [0.5, 0.6]
     ], dtype=jnp.float32)
     radius = jnp.array([
-        0.5,
-        1
+        0.05,
+        0.1
     ], dtype=jnp.float32)
     circle = Circle(key_frames, center, radius)
     # Test audio.
     circle.load_audio_file(audio_path)
+    scene.objects.append(circle)
+
+    # Add obstacle.
+    key_frames = jnp.array([0], dtype=jnp.float32)
+    center = jnp.array([
+        [0.75, 0.4],
+    ], dtype=jnp.float32)
+    radius = jnp.array([
+        0.05,
+    ], dtype=jnp.float32)
+    circle = Circle(key_frames, center, radius)
     scene.objects.append(circle)
 
     # Display.
@@ -83,13 +102,21 @@ def main():
                 v = grid.v_grid[i, j]
                 disp_buf[i, j] = ti.math.vec3((v.x + 1)/2, (v.y + 1)/2, 0)
 
-    gui = ti.GUI("FDTD Simulation", res=grid_size) # pyright: ignore
-    while gui.running:
-        if scene.t < time:
-            scene.step()
-        render()
-        gui.set_image(disp_buf)
-        gui.show()
+    finish_rendering = False
+    gui = None
+    if display:
+        gui = ti.GUI("FDTD Simulation", res=grid_size) # pyright: ignore
+    with tqdm(total=int(time/grid.dt)) as pbar:
+        while not finish_rendering or (display and gui and gui.running):
+            if scene.t < time:
+                scene.step()
+                pbar.update(1)
+            elif not finish_rendering:
+                finish_rendering = True
+            if gui:
+                render()
+                gui.set_image(disp_buf)
+                gui.show()
 
 if __name__ == "__main__":
     main()

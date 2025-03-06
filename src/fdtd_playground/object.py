@@ -77,7 +77,7 @@ class Circle(Object):
 
 
     def get_normal_v(self, t):
-        velocity = 0
+        velocity = jnp.array([0])
         i = int(self.sample_rate * t)
         if i >= 0 and i < self.samples.size - 1:
             alpha = self.sample_rate * t - i
