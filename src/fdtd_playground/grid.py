@@ -10,6 +10,7 @@ class Grid2D:
     # Staggered grid for pressure and velocity.
     alpha_grid: ti.Field
     p_grid: ti.Field
+    v_grid: ti.Field
     vx_grid: ti.Field
     vy_grid: ti.Field
     # Simulation grid size.
@@ -33,6 +34,7 @@ class Grid2D:
         sx, sy = size
         self.alpha_grid = ti.field(ti.f32, shape=(sx, sy))
         self.p_grid = ti.field(ti.f32, shape=(sx, sy))
+        self.v_grid = ti.field(ti.math.vec2, shape=(sx, sy))
         self.vx_grid = ti.field(ti.f32, shape=(sx + 1, sy))
         self.vy_grid = ti.field(ti.f32, shape=(sx, sy + 1))
 

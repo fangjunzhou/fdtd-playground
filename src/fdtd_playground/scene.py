@@ -36,6 +36,29 @@ class Scene2D:
             obj.rasterize_alpha(self.grid, t)
             obj.rasterize(self.grid, t)
 
+    def apply_velocity(self):
+        @ti.kernel
+        def clear_mask_velocity():
+            for i, j in self.grid.v_grid:
+                if self.grid.alpha_grid[i, j] == 1:
+                    self.grid.vx_grid[i, j] = 0
+                    self.grid.vx_grid[i+1, j] = 0
+                    self.grid.vy_grid[i, j] = 0
+                    self.grid.vy_grid[i, j+1] = 0
+        @ti.kernel
+        def apply_velocity():
+            for i, j in self.grid.v_grid:
+                # TODO: Implement WaveBlender
+                if self.grid.alpha_grid[i, j] == 1:
+                    self.grid.vx_grid[i, j] += self.grid.v_grid[i, j].x
+                    self.grid.vx_grid[i+1, j] += self.grid.v_grid[i, j].x
+                    self.grid.vy_grid[i, j] += self.grid.v_grid[i, j].y
+                    self.grid.vy_grid[i, j+1] += self.grid.v_grid[i, j].y
+
+        clear_mask_velocity()
+        apply_velocity()
+
+
 
 def main():
     # Initialize taichi.
@@ -54,9 +77,8 @@ def main():
     args = parser.parse_args()
     audio_path: pathlib.Path = args.open
 
-    SIZE = (128, 128)
-    grid = Grid2D(SIZE, 1/128, 10)
-    grid.dt = 1/60
+    SIZE = (512, 512)
+    grid = Grid2D(SIZE, 1/512, 340)
     scene = Scene2D(grid)
 
     # Test objects.
@@ -78,16 +100,31 @@ def main():
     disp_buf = ti.field(ti.math.vec3, shape=SIZE)
 
     @ti.kernel
+    def clear_disp_buf():
+        for i, j in disp_buf:
+            disp_buf[i, j] = ti.math.vec3(0)
+
+    @ti.kernel
     def render_alpha():
         """Render pressure field."""
         for i, j in disp_buf:
             disp_buf[i, j] = ti.math.vec3(grid.alpha_grid[i, j])
 
+    @ti.kernel
+    def render_velocity():
+        """Render pressure field."""
+        for i, j in disp_buf:
+            x = grid.vx_grid[i, j]
+            y = grid.vy_grid[i, j]
+            disp_buf[i, j] = ti.math.vec3((x+1)/2, (y+1)/2, 0)
+
     gui = ti.GUI("FDTD Simulation", res=SIZE) # pyright: ignore
     frame = 0
     while gui.running:
+        clear_disp_buf()
         scene.rasterize(frame * grid.dt)
-        render_alpha()
+        scene.apply_velocity()
+        render_velocity()
         gui.set_image(disp_buf)
         gui.text(content=f"frame={frame}, t={frame * grid.dt}", pos=[0, 0])
         gui.show()

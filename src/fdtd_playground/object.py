@@ -101,21 +101,17 @@ class Circle(Object):
     def rasterize(self, scene: Grid2D, t: float):
         c, r = self.get_center_radius(t)
         v = self.get_normal_v(t)
-        # Rasterize velocity field.
-        sx, sy = scene.size
-        v_field = ti.field(ti.math.vec2, shape=(sx, sy))
 
         @ti.kernel
         def rasterize_velocity(c: ti.math.vec2, r: ti.f32, v: ti.f32):
-            for i, j in v_field:
+            for i, j in scene.v_grid:
                 pos = ti.math.vec2(i * scene.dx, j * scene.dx)
                 dist = ti.math.length(pos - c)
                 if dist < r:
                     normal = (pos - c) / dist
-                    v_field[i, j] = v * normal
+                    scene.v_grid[i, j] = v * normal
 
         rasterize_velocity(ti.math.vec2(c), r.item(), v.item())
-        # TODO: Apply velocity field.
 
 
 def main():
