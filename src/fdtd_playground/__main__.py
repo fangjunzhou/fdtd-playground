@@ -21,14 +21,14 @@ def main():
         "--grid",
         help="Simulation grid size.",
         type=lambda s: tuple(map(int, s.split(','))),
-        default=(128, 128)
+        default=(256, 256)
     )
     parser.add_argument(
         "-c",
         "--cell",
         help="Simulation cell size.",
         type=float,
-        default=1/128
+        default=1/256
     )
     parser.add_argument(
         "-t",
@@ -60,7 +60,7 @@ def main():
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
-    scene = Scene2D(grid)
+    scene = Scene2D(grid, 0.0001, 16, 0.02)
 
     # Add audio source.
     key_frames = jnp.array([0, 1], dtype=jnp.float32)
