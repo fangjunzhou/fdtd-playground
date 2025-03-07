@@ -91,7 +91,7 @@ class BoxObstacle(Object):
                 pos -= c
                 pos = ti.math.mat2(ti.math.cos(r), -ti.math.sin(r), ti.math.sin(r), ti.math.cos(r)) @ pos
                 dist = sdf(pos, b)
-                if dist < blend_dist:
+                if dist < scene.dx * blend_dist:
                     scene.v_grid[i, j] = ti.math.vec2(0)
 
         c, b, r = self.get_param(t)
@@ -123,17 +123,21 @@ class Circle(Object):
         self.sample_rate, self.samples = read(audio_path)
         self.integrate_velocity()
 
-    def integrate_velocity(self, drift_correction: int = 8192, avg_sample: int = 32):
+    def integrate_velocity(self, drift_correction: int = 512, avg_sample: int = 256):
         # Numerical integration.
         self.normal_v = jnp.cumsum(self.samples / self.sample_rate)
         # Solve drift.
         trim = self.normal_v.size % avg_sample
-        avg = self.normal_v[:-trim].reshape((-1, avg_sample))
+        trim_normal_v = self.normal_v
+        if trim != 0:
+            trim_normal_v = self.normal_v[:-trim]
+        avg = trim_normal_v.reshape((-1, avg_sample))
         avg = jnp.mean(avg, axis=-1).flatten()
         low_res_idx = jnp.arange(0, avg.size - 1, int(avg.size / drift_correction))
         low_res = avg[low_res_idx]
         offset = jnp.interp(jnp.linspace(0, low_res.size, self.normal_v.size), jnp.arange(0, low_res.size), low_res)
         self.normal_v -= offset
+        self.normal_v /= jnp.max(jnp.abs(self.normal_v))
 
 
     def get_center_radius(self, t):
@@ -225,7 +229,12 @@ def main():
     ], dtype=jnp.float32)
     circle = Circle(key_frames, center, radius)
     # Test audio.
-    circle.load_audio_file(audio_path)
+    sample_rate = 44100
+    audio_length = 8
+    samples_t = jnp.linspace(0, audio_length, int(sample_rate * audio_length))
+    samples = jnp.sin(440 * 2 * jnp.pi * samples_t)
+    # circle.load_audio_file(audio_path)
+    circle.load_audio_sample(sample_rate, samples)
     num_samples = circle.samples.size
     audio_length = num_samples / circle.sample_rate
     samples_t = jnp.linspace(0, audio_length, num_samples)

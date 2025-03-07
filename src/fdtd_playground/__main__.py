@@ -102,7 +102,7 @@ def main():
     scene = Scene2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Add audio source.
-    key_frames = jnp.array([0, 1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 0.02], dtype=jnp.float32)
     center = jnp.array([
         [0.75, 0.4],
         [0.75, 0.6]
@@ -113,7 +113,12 @@ def main():
     ], dtype=jnp.float32)
     circle = Circle(key_frames, center, radius)
     # Test audio.
-    circle.load_audio_file(audio_path)
+    sample_rate = 44100
+    audio_length = 8
+    samples_t = jnp.linspace(0, audio_length, int(sample_rate * audio_length))
+    samples = jnp.sin(440 * 2 * jnp.pi * samples_t)
+    # circle.load_audio_file(audio_path)
+    circle.load_audio_sample(sample_rate, samples)
     scene.objects.append(circle)
 
     # Add obstacle.
@@ -127,7 +132,7 @@ def main():
     # circle = Circle(key_frames, center, radius)
     # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 0.02], dtype=jnp.float32)
     center = jnp.array([
         [0.5, 0.5],
         [0.5, 0.5],
