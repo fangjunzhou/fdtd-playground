@@ -101,7 +101,7 @@ def main():
     scene = Scene2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Add audio source.
-    key_frames = jnp.array([0, 1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
     center = jnp.array([
         [0.75, 0.4],
         [0.75, 0.6]
@@ -126,7 +126,7 @@ def main():
     # circle = Circle(key_frames, center, radius)
     # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
     center = jnp.array([
         [0.5, 0.5],
         [0.5, 0.5],

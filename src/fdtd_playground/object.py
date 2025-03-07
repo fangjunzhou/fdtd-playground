@@ -17,7 +17,7 @@ class Object(ABC):
         pass
 
     @abstractmethod
-    def rasterize(self, scene: Grid2D, t: float):
+    def rasterize(self, scene: Grid2D, t: float, blend_dist: float):
         pass
 
 class BoxObstacle(Object):
@@ -78,7 +78,7 @@ class BoxObstacle(Object):
         rasterize_alpha(ti.math.vec2(c), ti.math.vec2(b), r.item())
 
 
-    def rasterize(self, scene: Grid2D, t: float):
+    def rasterize(self, scene: Grid2D, t: float, blend_dist: float):
         @ti.func
         def sdf(p: ti.math.vec2, b: ti.math.vec2):
             d = ti.abs(p) - b;
@@ -91,7 +91,7 @@ class BoxObstacle(Object):
                 pos -= c
                 pos = ti.math.mat2(ti.math.cos(r), -ti.math.sin(r), ti.math.sin(r), ti.math.cos(r)) @ pos
                 dist = sdf(pos, b)
-                if dist < r:
+                if dist < blend_dist:
                     scene.v_grid[i, j] = ti.math.vec2(0)
 
         c, b, r = self.get_param(t)
@@ -181,18 +181,18 @@ class Circle(Object):
         rasterize_alpha(ti.math.vec2(c), r.item())
 
 
-    def rasterize(self, scene: Grid2D, t: float):
-        c, r = self.get_center_radius(t)
-        v = self.get_normal_v(t)
-
+    def rasterize(self, scene: Grid2D, t: float, blend_dist: float):
         @ti.kernel
         def rasterize_velocity(c: ti.math.vec2, r: ti.f32, v: ti.f32):
             for i, j in scene.v_grid:
                 pos = ti.math.vec2(i * scene.dx, j * scene.dx)
                 dist = ti.math.length(pos - c)
-                if dist < r + scene.dx:
+                if dist < r + scene.dx * blend_dist:
                     normal = (pos - c) / dist
                     scene.v_grid[i, j] = v * normal
+
+        c, r = self.get_center_radius(t)
+        v = self.get_normal_v(t)
 
         rasterize_velocity(ti.math.vec2(c), r.item(), v.item())
 

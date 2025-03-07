@@ -64,7 +64,7 @@ class Scene2D:
         clear_alpha()
         for obj in self.objects:
             obj.rasterize_alpha(self.grid, t, self.blend_dist)
-            obj.rasterize(self.grid, t)
+            obj.rasterize(self.grid, t, self.blend_dist)
 
 
     def apply_velocity(self):
@@ -121,7 +121,7 @@ class Scene2D:
                 p = self.grid.p_grid[i, j]
                 dx = self.grid.vx_grid[i+1, j] - self.grid.vx_grid[i, j]
                 dy = self.grid.vy_grid[i, j+1] - self.grid.vy_grid[i, j]
-                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p * alpha
+                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p * (1 - alpha)
         update_pressure()
 
 
