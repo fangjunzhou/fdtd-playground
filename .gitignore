@@ -9,3 +9,4 @@ __pycache__/
 
 # Artifact
 *.gif
+resources/result

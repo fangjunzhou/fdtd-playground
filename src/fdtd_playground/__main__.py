@@ -1,13 +1,22 @@
+import logging
 import pathlib
 from typing import Tuple
 import taichi as ti
 import jax.numpy as jnp
+import numpy as np
 import argparse
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.animation as animation
 
 from fdtd_playground.grid import Grid2D
 from fdtd_playground.object import Circle
 from fdtd_playground.scene import Scene2D
+
+
+logger = logging.getLogger(__name__)
+
 
 def main():
     ti.init(arch=ti.gpu)
@@ -38,16 +47,34 @@ def main():
         default=8
     )
     parser.add_argument(
-        "-o",
-        "--open",
+        "-i",
+        "--input",
         help="Audio wav file.",
         type=pathlib.Path,
     )
     parser.add_argument(
-        "-d",
-        "--display",
-        help="Enable display",
+        "-o",
+        "--output",
+        help="Output directory.",
+        type=pathlib.Path,
+    )
+    parser.add_argument(
+        "-r",
+        "--render",
+        help="Option to render animation.",
         action="store_true",
+    )
+    parser.add_argument(
+        "--anim",
+        help="Animation time step size.",
+        type=float,
+        default=1/20000
+    )
+    parser.add_argument(
+        "--fps",
+        help="Animation frame rate.",
+        type=float,
+        default=60
     )
     args = parser.parse_args()
 
@@ -55,8 +82,11 @@ def main():
     grid_size: Tuple[int, int] = args.grid
     cell_size: float = args.cell
     time: float = args.time
-    audio_path: pathlib.Path = args.open
-    display:bool = args.display
+    audio_path: pathlib.Path = args.input
+    out_path: pathlib.Path = args.output
+    render: bool = args.render
+    anim_dt: float = args.anim
+    fps: int = args.fps
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
@@ -88,35 +118,42 @@ def main():
     circle = Circle(key_frames, center, radius)
     scene.objects.append(circle)
 
-    # Display.
-    disp_buf = ti.field(ti.math.vec3, shape=grid_size)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    artists = []
+    t = anim_dt
+    def draw(frame: int, t: float, dt: float):
+        if t >= anim_dt:
+            vf = grid.v_grid.to_numpy()
+            vf = np.linalg.norm(vf, axis=-1)
+            af = grid.alpha_grid.to_numpy()
+            vf = np.stack([vf, vf, vf, af])
+            pf = grid.p_grid.to_numpy()
+            # Plot pressure field.
+            img_p = ax.imshow(pf.T, vmin=-10, vmax=10, cmap="coolwarm")
+            # Plot normal velocity.
+            img_v = ax.imshow(vf.T, vmin=-1, vmax=1)
+            ax.invert_yaxis()
+            patches = [
+                mpatches.Patch(label=f"Frame {frame}"),
+                mpatches.Patch(label=f"Time {frame * dt:.6f}s")
+            ]
+            lgds = ax.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+            ax.add_artist(lgds)
+            artists.append([img_p, img_v, lgds])
+            t = 0
+        t += dt
+        return t
 
-    @ti.kernel
-    def render():
-        # Render pressure field
-        for i, j in disp_buf:
-            disp_buf[i, j] = ti.math.vec3(grid.p_grid[i, j]/10)
-        # Render velocity field
-        for i, j in disp_buf:
-            if grid.alpha_grid[i, j] == 1:
-                v = grid.v_grid[i, j]
-                disp_buf[i, j] = ti.math.vec3((v.x + 1)/2, (v.y + 1)/2, 0)
+    num_frames = int(time / grid.dt)
+    for frame in tqdm(range(num_frames)):
+        scene.step()
+        if render:
+            t = draw(frame, t, grid.dt)
 
-    finish_rendering = False
-    gui = None
-    if display:
-        gui = ti.GUI("FDTD Simulation", res=grid_size) # pyright: ignore
-    with tqdm(total=int(time/grid.dt)) as pbar:
-        while not finish_rendering or (display and gui and gui.running):
-            if scene.t < time:
-                scene.step()
-                pbar.update(1)
-            elif not finish_rendering:
-                finish_rendering = True
-            if gui:
-                render()
-                gui.set_image(disp_buf)
-                gui.show()
+    if render:
+        anim = animation.ArtistAnimation(fig=fig, artists=artists, interval=int(1000/fps))
+        writer = animation.FFMpegWriter(fps=fps)
+        anim.save(filename=out_path/"fdtd.mp4", writer=writer)
 
 if __name__ == "__main__":
     main()
