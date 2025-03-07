@@ -1,15 +1,20 @@
 import logging
+import os
+import shutil
 import pathlib
+import json
 from typing import Tuple
 import taichi as ti
 import jax.numpy as jnp
 import numpy as np
 import argparse
 from tqdm import tqdm
+import ffmpeg
+import cv2
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.animation as animation
-from scipy.io.wavfile import write
+from scipy.io.wavfile import read, write
 
 from fdtd_playground.grid import Grid2D
 from fdtd_playground.object import BoxObstacle, Circle
@@ -30,7 +35,7 @@ def main():
         "-g",
         "--grid",
         help="Simulation grid size.",
-        type=lambda s: tuple(map(int, s.split(','))),
+        type=lambda s: tuple(map(int, s.split(","))),
         default=(64, 64)
     )
     parser.add_argument(
@@ -53,6 +58,12 @@ def main():
         help="Simulation length.",
         type=float,
         default=1
+    )
+    parser.add_argument(
+        "--checkpoint",
+        help="Checkpoint per frame",
+        type=int,
+        default=4096
     )
     parser.add_argument(
         "-i",
@@ -96,13 +107,14 @@ def main():
     render: bool = args.render
     anim_dt: float = args.anim
     fps: int = args.fps
+    checkpoint: int = args.checkpoint
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
     scene = Scene2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Add audio source.
-    key_frames = jnp.array([0, 0.02], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
         [0.75, 0.4],
         [0.75, 0.6]
@@ -117,8 +129,8 @@ def main():
     audio_length = 8
     samples_t = jnp.linspace(0, audio_length, int(sample_rate * audio_length))
     samples = jnp.sin(440 * 2 * jnp.pi * samples_t)
-    # circle.load_audio_file(audio_path)
-    circle.load_audio_sample(sample_rate, samples)
+    circle.load_audio_file(audio_path)
+    # circle.load_audio_sample(sample_rate, samples)
     scene.objects.append(circle)
 
     # Add obstacle.
@@ -132,7 +144,7 @@ def main():
     # circle = Circle(key_frames, center, radius)
     # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 0.02], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
         [0.5, 0.5],
         [0.5, 0.5],
@@ -154,7 +166,7 @@ def main():
     num_frames = int(time / grid.dt)
     vel_samples = jnp.zeros((num_frames))
 
-    fig, ax = plt.subplots(figsize=(8, 4))
+    anim_fig, anim_ax = plt.subplots(figsize=(8, 4))
     artists = []
     t = anim_dt
     def draw(frame: int, t: float, dt: float):
@@ -164,48 +176,86 @@ def main():
             af = grid.alpha_grid.to_numpy()
             pf = grid.p_grid.to_numpy()
             # Plot pressure field.
-            img_p = ax.imshow(pf.T, vmin=-10, vmax=10, cmap="coolwarm")
+            img_p = anim_ax.imshow(pf.T, vmin=-10, vmax=10, cmap="coolwarm")
             # Plot normal velocity.
-            img_v = ax.imshow(vf.T, alpha=af.T, vmin=-1, vmax=1)
-            ax.invert_yaxis()
+            img_v = anim_ax.imshow(vf.T, alpha=af.T, vmin=-1, vmax=1)
+            anim_ax.invert_yaxis()
             patches = [
                 mpatches.Patch(label=f"Frame {frame}"),
                 mpatches.Patch(label=f"Time {frame * dt:.6f}s")
             ]
-            lgds = ax.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-            ax.add_artist(lgds)
+            lgds = anim_ax.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+            anim_ax.add_artist(lgds)
             artists.append([img_p, img_v, lgds])
             t = 0
         t += dt
         return t
 
-    for frame in tqdm(range(num_frames)):
+    def save(fig, artists, vel_samples):
+        logger.info("Saving animation")
+        if render:
+            anim = animation.ArtistAnimation(fig=fig, artists=artists, interval=int(1000/fps))
+            writer = animation.FFMpegWriter(fps=fps)
+            anim.save(filename=out_path/"curr.mp4", writer=writer)
+        logger.info("Animation saved")
+
+        logger.info("Saving audio")
+        # Resample audio wave.
+        sample_rate = 44100
+        vel_samples = jnp.interp(jnp.linspace(0, num_frames, int(sample_rate * time)), jnp.arange(0, num_frames), vel_samples)
+        # Finite difference velocity samples to get audio samples.
+        sample = (vel_samples[1:] - vel_samples[:-1]) * sample_rate
+        sample /= jnp.max(jnp.abs(sample))
+        wav_fig, wav_ax = plt.subplots()
+        wav_ax.plot(jnp.linspace(0, time, sample.size), sample)
+        wav_ax.set_title("Recorded Waveform")
+        wav_fig.savefig(out_path/"fdtd-wav.png")
+        write(out_path/"record.wav", sample_rate, np.array(sample))
+        logger.info("Audio saved")
+
+    start_frame = 0
+    # Load checkpoint.
+    if os.path.exists(out_path/"checkpoint.json"):
+        with open(out_path/"checkpoint.json", "r") as checkpoint_file:
+            start_frame = json.load(checkpoint_file)["frame"] + 1
+        grid.p_grid.from_numpy(np.load(out_path/"checkpoint"/"p_grid.npy"))
+        grid.vx_grid.from_numpy(np.load(out_path/"checkpoint"/"vx_grid.npy"))
+        grid.vy_grid.from_numpy(np.load(out_path/"checkpoint"/"vy_grid.npy"))
+        vel_samples = jnp.array(np.load(out_path/"checkpoint"/"samples.npy"))
+    else:
+        os.mkdir(out_path/"checkpoint")
+
+    for frame in tqdm(range(start_frame, num_frames), position=0, leave=True):
         scene.step()
         # Record sample.
         vel_samples = vel_samples.at[frame].set(grid.vx_grid[rx, ry])
+        # Checkpoint.
+        if (frame + 1) % checkpoint == 0:
+            save(anim_fig, artists, vel_samples)
+            os.rename(out_path/"curr.mp4", out_path/"checkpoint"/f"checkpoint-{frame}.mp4")
+            artists = []
+            np.save(out_path/"checkpoint"/"p_grid.npy", grid.p_grid.to_numpy())
+            np.save(out_path/"checkpoint"/"vx_grid.npy", grid.vx_grid.to_numpy())
+            np.save(out_path/"checkpoint"/"vy_grid.npy", grid.vy_grid.to_numpy())
+            np.save(out_path/"checkpoint"/"samples.npy", vel_samples)
+            with open(out_path/"checkpoint.json", "w") as checkpoint_file:
+                json.dump({
+                    "frame": frame
+                }, checkpoint_file)
         if render:
             t = draw(frame, t, grid.dt)
 
-    logger.info("Saving animation")
-    if render:
-        anim = animation.ArtistAnimation(fig=fig, artists=artists, interval=int(1000/fps))
-        writer = animation.FFMpegWriter(fps=fps)
-        anim.save(filename=out_path/"fdtd.mp4", writer=writer)
-    logger.info("Animation saved")
+    save(anim_fig, artists, vel_samples)
+    os.rename(out_path/"curr.mp4", out_path/"checkpoint"/f"checkpoint-final.mp4")
+    input_paths = []
+    for file in os.listdir(out_path/"checkpoint"):
+        if file.split(".")[-1] == "mp4":
+            input_paths.append(file)
+    open(out_path/"concat.txt", "w").writelines([f"file checkpoint/{input_path}\n" for input_path in input_paths])
+    ffmpeg.input(out_path/"concat.txt", format="concat", safe=0).output(str(out_path/"fdtd.mp4"), c="copy").run(overwrite_output=True)
+    os.remove(out_path/"checkpoint.json")
+    shutil.rmtree(out_path/"checkpoint")
 
-    logger.info("Saving audio")
-    # Resample audio wave.
-    sample_rate = 44100
-    vel_samples = jnp.interp(jnp.linspace(0, num_frames, int(sample_rate * time)), jnp.arange(0, num_frames), vel_samples)
-    # Finite difference velocity samples to get audio samples.
-    sample = (vel_samples[1:] - vel_samples[:-1]) * sample_rate
-    sample /= jnp.max(jnp.abs(sample))
-    fig, ax = plt.subplots()
-    ax.plot(jnp.linspace(0, time, sample.size), sample)
-    ax.set_title("Recorded Waveform")
-    fig.savefig(out_path/"fdtd-wav.png")
-    write(out_path/"record.wav", sample_rate, np.array(sample))
-    logger.info("Animation saved")
 
 if __name__ == "__main__":
     main()
