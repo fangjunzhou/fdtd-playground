@@ -43,8 +43,8 @@ class Scene2D:
                 dt = sy - j
                 d = ti.math.min(dl, dr, db, dt)
                 # PML
-                if d < 8:
-                    alpha = d / 8
+                if d < pml:
+                    alpha = d / pml
                     self.damping_grid[i, j] = alpha * damp_factor + (1 - alpha) * pml_damp
                 else:
                     self.damping_grid[i, j] = damp_factor

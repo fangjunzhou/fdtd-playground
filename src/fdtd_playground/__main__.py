@@ -30,21 +30,21 @@ def main():
         "--grid",
         help="Simulation grid size.",
         type=lambda s: tuple(map(int, s.split(','))),
-        default=(256, 256)
+        default=(64, 64)
     )
     parser.add_argument(
         "-c",
         "--cell",
         help="Simulation cell size.",
         type=float,
-        default=1/256
+        default=1/64
     )
     parser.add_argument(
         "-t",
         "--time",
         help="Simulation length.",
         type=float,
-        default=8
+        default=1
     )
     parser.add_argument(
         "-i",
@@ -90,7 +90,7 @@ def main():
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
-    scene = Scene2D(grid, 0.0001, 16, 0.02)
+    scene = Scene2D(grid, 0.0001, 8, 0.02)
 
     # Add audio source.
     key_frames = jnp.array([0, 1], dtype=jnp.float32)
@@ -126,12 +126,11 @@ def main():
             vf = grid.v_grid.to_numpy()
             vf = np.linalg.norm(vf, axis=-1)
             af = grid.alpha_grid.to_numpy()
-            vf = np.stack([vf, vf, vf, af])
             pf = grid.p_grid.to_numpy()
             # Plot pressure field.
             img_p = ax.imshow(pf.T, vmin=-10, vmax=10, cmap="coolwarm")
             # Plot normal velocity.
-            img_v = ax.imshow(vf.T, vmin=-1, vmax=1)
+            img_v = ax.imshow(vf.T, alpha=af.T, vmin=-1, vmax=1)
             ax.invert_yaxis()
             patches = [
                 mpatches.Patch(label=f"Frame {frame}"),
