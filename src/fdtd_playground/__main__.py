@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.animation as animation
+from scipy.io.wavfile import write
 
 from fdtd_playground.grid import Grid2D
 from fdtd_playground.object import BoxObstacle, Circle
@@ -142,6 +143,12 @@ def main():
     box = BoxObstacle(key_frames, center, size, rotation)
     scene.objects.append(box)
 
+    # Record samples.
+    rx, ry = (0.25, 0.5)
+    rx, ry = int(rx / grid.dx), int(ry / grid.dx)
+    num_frames = int(time / grid.dt)
+    vel_samples = jnp.zeros((num_frames))
+
     fig, ax = plt.subplots(figsize=(8, 4))
     artists = []
     t = anim_dt
@@ -167,16 +174,32 @@ def main():
         t += dt
         return t
 
-    num_frames = int(time / grid.dt)
     for frame in tqdm(range(num_frames)):
         scene.step()
+        # Record sample.
+        vel_samples = vel_samples.at[frame].set(grid.vx_grid[rx, ry])
         if render:
             t = draw(frame, t, grid.dt)
 
+    logger.info("Saving animation")
     if render:
         anim = animation.ArtistAnimation(fig=fig, artists=artists, interval=int(1000/fps))
         writer = animation.FFMpegWriter(fps=fps)
         anim.save(filename=out_path/"fdtd.mp4", writer=writer)
+    logger.info("Animation saved")
+
+    logger.info("Saving audio")
+    # Resample audio wave.
+    sample_rate = 44100
+    vel_samples = jnp.interp(jnp.linspace(0, num_frames, int(sample_rate * time)), jnp.arange(0, num_frames), vel_samples)
+    # Finite difference velocity samples to get audio samples.
+    sample = (vel_samples[1:] - vel_samples[:-1]) * sample_rate
+    fig, ax = plt.subplots()
+    ax.plot(jnp.linspace(0, time, sample.size), sample)
+    ax.set_title("Recorded Waveform")
+    fig.savefig(out_path/"fdtd-wav.png")
+    write(out_path/"record.wav", sample_rate, np.array(sample))
+    logger.info("Animation saved")
 
 if __name__ == "__main__":
     main()
