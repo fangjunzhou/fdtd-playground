@@ -102,7 +102,7 @@ def main():
     scene = Scene2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Add audio source.
-    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
         [0.75, 0.4],
         [0.75, 0.6]
@@ -127,7 +127,7 @@ def main():
     # circle = Circle(key_frames, center, radius)
     # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
         [0.5, 0.5],
         [0.5, 0.5],
@@ -194,6 +194,7 @@ def main():
     vel_samples = jnp.interp(jnp.linspace(0, num_frames, int(sample_rate * time)), jnp.arange(0, num_frames), vel_samples)
     # Finite difference velocity samples to get audio samples.
     sample = (vel_samples[1:] - vel_samples[:-1]) * sample_rate
+    sample /= jnp.max(jnp.abs(sample))
     fig, ax = plt.subplots()
     ax.plot(jnp.linspace(0, time, sample.size), sample)
     ax.set_title("Recorded Waveform")
