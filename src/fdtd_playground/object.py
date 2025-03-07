@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Object(ABC):
     @abstractmethod
-    def rasterize_alpha(self, scene: Grid2D, t: float):
+    def rasterize_alpha(self, scene: Grid2D, t: float, blend_dist: float):
         pass
 
     @abstractmethod
@@ -56,7 +56,7 @@ class BoxObstacle(Object):
                 rotation = next_r * alpha + curr_r * (1 - alpha)
         return center, size, rotation
 
-    def rasterize_alpha(self, scene: Grid2D, t: float):
+    def rasterize_alpha(self, scene: Grid2D, t: float, blend_dist: float):
         @ti.func
         def sdf(p: ti.math.vec2, b: ti.math.vec2):
             d = ti.abs(p) - b;
@@ -72,8 +72,8 @@ class BoxObstacle(Object):
                 if dist < 0:
                     scene.alpha_grid[i, j] = 1
                 # WaveBlender
-                elif dist < scene.dx:
-                    scene.alpha_grid[i, j] = 1 - dist / scene.dx
+                elif dist < scene.dx * blend_dist:
+                    scene.alpha_grid[i, j] = 1 - dist / (scene.dx * blend_dist)
         c, b, r = self.get_param(t)
         rasterize_alpha(ti.math.vec2(c), ti.math.vec2(b), r.item())
 
@@ -164,7 +164,7 @@ class Circle(Object):
         return velocity
 
 
-    def rasterize_alpha(self, scene: Grid2D, t: float):
+    def rasterize_alpha(self, scene: Grid2D, t: float, blend_dist: float):
         c, r = self.get_center_radius(t)
 
         @ti.kernel
@@ -175,8 +175,8 @@ class Circle(Object):
                 if dist < r:
                     scene.alpha_grid[i, j] = 1
                 # WaveBlender
-                elif dist < r + scene.dx:
-                    scene.alpha_grid[i, j] = 1 - (dist - r) / scene.dx
+                elif dist < r + scene.dx * blend_dist:
+                    scene.alpha_grid[i, j] = 1 - (dist - r) / (scene.dx * blend_dist)
 
         rasterize_alpha(ti.math.vec2(c), r.item())
 
@@ -190,7 +190,7 @@ class Circle(Object):
             for i, j in scene.v_grid:
                 pos = ti.math.vec2(i * scene.dx, j * scene.dx)
                 dist = ti.math.length(pos - c)
-                if dist < r:
+                if dist < r + scene.dx:
                     normal = (pos - c) / dist
                     scene.v_grid[i, j] = v * normal
 

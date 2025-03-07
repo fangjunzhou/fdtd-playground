@@ -40,6 +40,13 @@ def main():
         default=1/64
     )
     parser.add_argument(
+        "-b",
+        "--blend",
+        help="Blend distance in unit of dx.",
+        type=float,
+        default=1
+    )
+    parser.add_argument(
         "-t",
         "--time",
         help="Simulation length.",
@@ -68,7 +75,7 @@ def main():
         "--anim",
         help="Animation time step size.",
         type=float,
-        default=1/20000
+        default=1/60
     )
     parser.add_argument(
         "--fps",
@@ -81,6 +88,7 @@ def main():
     # Simulation parameters.
     grid_size: Tuple[int, int] = args.grid
     cell_size: float = args.cell
+    blend_dist: float = args.blend
     time: float = args.time
     audio_path: pathlib.Path = args.input
     out_path: pathlib.Path = args.output
@@ -90,17 +98,17 @@ def main():
 
     # Simulation setup.
     grid = Grid2D(grid_size, cell_size)
-    scene = Scene2D(grid, 0.0001, 8, 0.02)
+    scene = Scene2D(grid, 0.0001, 8, 0.05, blend_dist)
 
     # Add audio source.
     key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
-        [0.5, 0.4],
-        [0.5, 0.6]
+        [0.75, 0.4],
+        [0.75, 0.6]
     ], dtype=jnp.float32)
     radius = jnp.array([
         0.05,
-        0.1
+        0.05
     ], dtype=jnp.float32)
     circle = Circle(key_frames, center, radius)
     # Test audio.
@@ -108,28 +116,28 @@ def main():
     scene.objects.append(circle)
 
     # Add obstacle.
-    key_frames = jnp.array([0], dtype=jnp.float32)
-    center = jnp.array([
-        [0.75, 0.4],
-    ], dtype=jnp.float32)
-    radius = jnp.array([
-        0.05,
-    ], dtype=jnp.float32)
-    circle = Circle(key_frames, center, radius)
-    scene.objects.append(circle)
+    # key_frames = jnp.array([0], dtype=jnp.float32)
+    # center = jnp.array([
+    #     [0.75, 0.4],
+    # ], dtype=jnp.float32)
+    # radius = jnp.array([
+    #     0.05,
+    # ], dtype=jnp.float32)
+    # circle = Circle(key_frames, center, radius)
+    # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1], dtype=jnp.float32)
     center = jnp.array([
-        [0.2, 0.5],
-        [0.25, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
     ], dtype=jnp.float32)
     size = jnp.array([
         [0.01, 0.1],
         [0.01, 0.1],
     ], dtype=jnp.float32)
     rotation = jnp.array([
-        -np.pi/8,
-        np.pi/8
+        -np.pi,
+        np.pi
     ], dtype=jnp.float32)
     box = BoxObstacle(key_frames, center, size, rotation)
     scene.objects.append(box)

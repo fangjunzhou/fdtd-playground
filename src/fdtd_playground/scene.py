@@ -20,6 +20,7 @@ class Scene2D:
 
     # Solver states.
     damping_grid: ti.Field
+    blend_dist: float
 
     # Simulation states.
     t: ti.f32 = 0
@@ -28,10 +29,12 @@ class Scene2D:
                  grid: Grid2D,
                  damp_factor: float = 0,
                  pml: int = 8,
-                 pml_damp: float = 0.02) -> None:
+                 pml_damp: float = 0.02,
+                 blend_dist: float = 1) -> None:
         self.grid = grid
         self.objects = []
         self.damping_grid = ti.field(ti.f32, shape=grid.size)
+        self.blend_dist = blend_dist
 
         @ti.kernel
         def setup_damping_grid():
@@ -60,7 +63,7 @@ class Scene2D:
 
         clear_alpha()
         for obj in self.objects:
-            obj.rasterize_alpha(self.grid, t)
+            obj.rasterize_alpha(self.grid, t, self.blend_dist)
             obj.rasterize(self.grid, t)
 
 
@@ -68,20 +71,21 @@ class Scene2D:
         @ti.kernel
         def clear_mask_velocity():
             for i, j in self.grid.v_grid:
-                if self.grid.alpha_grid[i, j] == 1:
-                    self.grid.vx_grid[i, j] = 0
-                    self.grid.vx_grid[i+1, j] = 0
-                    self.grid.vy_grid[i, j] = 0
-                    self.grid.vy_grid[i, j+1] = 0
+                if self.grid.alpha_grid[i, j] > 0:
+                    alpha = self.grid.alpha_grid[i, j]
+                    self.grid.vx_grid[i, j] *= 1 - alpha
+                    self.grid.vx_grid[i+1, j] *= 1 - alpha
+                    self.grid.vy_grid[i, j] *= 1 - alpha
+                    self.grid.vy_grid[i, j+1] *= 1 - alpha
         @ti.kernel
         def apply_velocity():
             for i, j in self.grid.v_grid:
-                # TODO: Implement WaveBlender
-                if self.grid.alpha_grid[i, j] == 1:
-                    self.grid.vx_grid[i, j] += self.grid.v_grid[i, j].x
-                    self.grid.vx_grid[i+1, j] += self.grid.v_grid[i, j].x
-                    self.grid.vy_grid[i, j] += self.grid.v_grid[i, j].y
-                    self.grid.vy_grid[i, j+1] += self.grid.v_grid[i, j].y
+                if self.grid.alpha_grid[i, j] > 0:
+                    alpha = self.grid.alpha_grid[i, j]
+                    self.grid.vx_grid[i, j] += self.grid.v_grid[i, j].x * alpha
+                    self.grid.vx_grid[i+1, j] += self.grid.v_grid[i, j].x * alpha
+                    self.grid.vy_grid[i, j] += self.grid.v_grid[i, j].y * alpha
+                    self.grid.vy_grid[i, j+1] += self.grid.v_grid[i, j].y * alpha
 
         clear_mask_velocity()
         apply_velocity()
@@ -112,11 +116,12 @@ class Scene2D:
             c = self.grid.c
             sx, sy = self.grid.size
             for i, j in ti.ndrange((0, sx), (0, sy)):
+                alpha = self.grid.alpha_grid[i, j]
                 sigma = self.damping_grid[i, j]
                 p = self.grid.p_grid[i, j]
                 dx = self.grid.vx_grid[i+1, j] - self.grid.vx_grid[i, j]
                 dy = self.grid.vy_grid[i, j+1] - self.grid.vy_grid[i, j]
-                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p
+                self.grid.p_grid[i, j] -= c**2 * (dx + dy) * dt + sigma * p * alpha
         update_pressure()
 
 
