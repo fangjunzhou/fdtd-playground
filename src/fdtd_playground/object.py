@@ -20,6 +20,84 @@ class Object(ABC):
     def rasterize(self, scene: Grid2D, t: float):
         pass
 
+class BoxObstacle(Object):
+    key_frames: jnp.ndarray
+    center: jnp.ndarray
+    size: jnp.ndarray
+    rotation: jnp.ndarray
+
+    def __init__(self,
+                 key_frames: jnp.ndarray,
+                 center: jnp.ndarray,
+                 size: jnp.ndarray,
+                 rotation: jnp.ndarray) -> None:
+        self.key_frames = key_frames
+        self.center = center
+        self.size = size
+        self.rotation = rotation
+
+    def get_param(self, t):
+        # Interpolate center and radius.
+        center = self.center[-1]
+        size = self.size[-1]
+        rotation = self.rotation[-1]
+        if self.key_frames[-1] <= t:
+            return center, size, rotation
+
+        for i in range(self.key_frames.size - 1):
+            if self.key_frames[i] <= t:
+                curr_t, next_t = self.key_frames[i], self.key_frames[i+1]
+                alpha = (t - curr_t) / (next_t - curr_t)
+                curr_c, next_c = self.center[i], self.center[i+1]
+                center = next_c * alpha + curr_c * (1 - alpha)
+                curr_s, next_s = self.size[i], self.size[i+1]
+                size = next_s * alpha + curr_s * (1 - alpha)
+                curr_r, next_r = self.rotation[i], self.rotation[i+1]
+                rotation = next_r * alpha + curr_r * (1 - alpha)
+        return center, size, rotation
+
+    def rasterize_alpha(self, scene: Grid2D, t: float):
+        @ti.func
+        def sdf(p: ti.math.vec2, b: ti.math.vec2):
+            d = ti.abs(p) - b;
+            return ti.math.length(ti.math.max(d, 0)) + ti.math.min(ti.math.max(d.x, d.y), 0)
+
+        @ti.kernel
+        def rasterize_alpha(c: ti.math.vec2, b: ti.math.vec2, r: ti.f32):
+            for i, j in scene.alpha_grid:
+                pos = ti.math.vec2(i * scene.dx, j * scene.dx)
+                pos -= c
+                pos = ti.math.mat2(ti.math.cos(r), -ti.math.sin(r), ti.math.sin(r), ti.math.cos(r)) @ pos
+                dist = sdf(pos, b)
+                if dist < 0:
+                    scene.alpha_grid[i, j] = 1
+                # WaveBlender
+                elif dist < scene.dx:
+                    scene.alpha_grid[i, j] = 1 - dist / scene.dx
+        c, b, r = self.get_param(t)
+        rasterize_alpha(ti.math.vec2(c), ti.math.vec2(b), r.item())
+
+
+    def rasterize(self, scene: Grid2D, t: float):
+        @ti.func
+        def sdf(p: ti.math.vec2, b: ti.math.vec2):
+            d = ti.abs(p) - b;
+            return ti.math.length(ti.math.max(d, 0)) + ti.math.min(ti.math.max(d.x, d.y), 0)
+
+        @ti.kernel
+        def rasterize_velocity(c: ti.math.vec2, b: ti.math.vec2, r: ti.f32):
+            for i, j in scene.v_grid:
+                pos = ti.math.vec2(i * scene.dx, j * scene.dx)
+                pos -= c
+                pos = ti.math.mat2(ti.math.cos(r), -ti.math.sin(r), ti.math.sin(r), ti.math.cos(r)) @ pos
+                dist = sdf(pos, b)
+                if dist < r:
+                    scene.v_grid[i, j] = ti.math.vec2(0)
+
+        c, b, r = self.get_param(t)
+        rasterize_velocity(ti.math.vec2(c), ti.math.vec2(b), r.item())
+
+
 class Circle(Object):
     key_frames: jnp.ndarray
     center: jnp.ndarray
@@ -96,6 +174,9 @@ class Circle(Object):
                 dist = ti.math.length(pos - c)
                 if dist < r:
                     scene.alpha_grid[i, j] = 1
+                # WaveBlender
+                elif dist < r + scene.dx:
+                    scene.alpha_grid[i, j] = 1 - (dist - r) / scene.dx
 
         rasterize_alpha(ti.math.vec2(c), r.item())
 

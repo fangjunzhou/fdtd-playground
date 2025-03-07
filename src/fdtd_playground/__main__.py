@@ -11,7 +11,7 @@ import matplotlib.patches as mpatches
 import matplotlib.animation as animation
 
 from fdtd_playground.grid import Grid2D
-from fdtd_playground.object import Circle
+from fdtd_playground.object import BoxObstacle, Circle
 from fdtd_playground.scene import Scene2D
 
 
@@ -117,6 +117,22 @@ def main():
     ], dtype=jnp.float32)
     circle = Circle(key_frames, center, radius)
     scene.objects.append(circle)
+
+    key_frames = jnp.array([0, 0.1], dtype=jnp.float32)
+    center = jnp.array([
+        [0.2, 0.5],
+        [0.25, 0.5],
+    ], dtype=jnp.float32)
+    size = jnp.array([
+        [0.01, 0.1],
+        [0.01, 0.1],
+    ], dtype=jnp.float32)
+    rotation = jnp.array([
+        -np.pi/8,
+        np.pi/8
+    ], dtype=jnp.float32)
+    box = BoxObstacle(key_frames, center, size, rotation)
+    scene.objects.append(box)
 
     fig, ax = plt.subplots(figsize=(8, 4))
     artists = []
