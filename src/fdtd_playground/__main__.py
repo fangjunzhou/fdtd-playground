@@ -209,8 +209,8 @@ def main():
         wav_fig, wav_ax = plt.subplots()
         wav_ax.plot(jnp.linspace(0, time, sample.size), sample)
         wav_ax.set_title("Recorded Waveform")
-        wav_fig.savefig(out_path/"fdtd-wav.png")
-        write(out_path/"record.wav", sample_rate, np.array(sample))
+        wav_fig.savefig(out_path/"waveform.png")
+        write(out_path/"audio.wav", sample_rate, np.array(sample))
         logger.info("Audio saved")
 
     start_frame = 0
@@ -218,11 +218,12 @@ def main():
     if os.path.exists(out_path/"checkpoint.json"):
         with open(out_path/"checkpoint.json", "r") as checkpoint_file:
             start_frame = json.load(checkpoint_file)["frame"] + 1
+        scene.t = start_frame * grid.dt
         grid.p_grid.from_numpy(np.load(out_path/"checkpoint"/"p_grid.npy"))
         grid.vx_grid.from_numpy(np.load(out_path/"checkpoint"/"vx_grid.npy"))
         grid.vy_grid.from_numpy(np.load(out_path/"checkpoint"/"vy_grid.npy"))
         vel_samples = jnp.array(np.load(out_path/"checkpoint"/"samples.npy"))
-    else:
+    elif not os.path.exists(out_path/"checkpoint"):
         os.mkdir(out_path/"checkpoint")
 
     for frame in tqdm(range(start_frame, num_frames), position=0, leave=True):
@@ -246,13 +247,15 @@ def main():
             t = draw(frame, t, grid.dt)
 
     save(anim_fig, artists, vel_samples)
-    os.rename(out_path/"curr.mp4", out_path/"checkpoint"/f"checkpoint-final.mp4")
+    os.rename(out_path/"curr.mp4", out_path/"checkpoint"/f"checkpoint-{num_frames}.mp4")
     input_paths = []
     for file in os.listdir(out_path/"checkpoint"):
-        if file.split(".")[-1] == "mp4":
-            input_paths.append(file)
-    open(out_path/"concat.txt", "w").writelines([f"file checkpoint/{input_path}\n" for input_path in input_paths])
-    ffmpeg.input(out_path/"concat.txt", format="concat", safe=0).output(str(out_path/"fdtd.mp4"), c="copy").run(overwrite_output=True)
+        names = file.split(".")
+        if names[-1] == "mp4":
+            input_paths.append((file, int(names[0].split("-")[-1])))
+    input_paths.sort(key=lambda x: x[1])
+    open(out_path/"concat.txt", "w").writelines([f"file checkpoint/{input_path[0]}\n" for input_path in input_paths])
+    ffmpeg.input(out_path/"concat.txt", format="concat", safe=0).output(str(out_path/"anim.mp4"), c="copy").run(overwrite_output=True)
     os.remove(out_path/"checkpoint.json")
     shutil.rmtree(out_path/"checkpoint")
 
