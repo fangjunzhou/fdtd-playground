@@ -144,18 +144,39 @@ def main():
     # circle = Circle(key_frames, center, radius)
     # scene.objects.append(circle)
 
-    key_frames = jnp.array([0, 1], dtype=jnp.float32)
+    key_frames = jnp.array([0, 1, 3, 3.25, 3.5, 3.75, 4, 6, 7.5], dtype=jnp.float32)
     center = jnp.array([
+        [0.5, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
+        [0.5, 0.5],
         [0.5, 0.5],
         [0.5, 0.5],
     ], dtype=jnp.float32)
     size = jnp.array([
         [0.01, 0.1],
         [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
+        [0.01, 0.1],
     ], dtype=jnp.float32)
     rotation = jnp.array([
         -np.pi,
-        np.pi
+        np.pi,
+        np.pi,
+        np.pi / 2,
+        np.pi,
+        np.pi / 2,
+        np.pi,
+        np.pi,
+        - 3 * np.pi,
     ], dtype=jnp.float32)
     box = BoxObstacle(key_frames, center, size, rotation)
     scene.objects.append(box)

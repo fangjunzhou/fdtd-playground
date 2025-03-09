@@ -36,6 +36,10 @@ class BoxObstacle(Object):
         self.size = size
         self.rotation = rotation
 
+        assert key_frames.shape[0] == center.shape[0]
+        assert key_frames.shape[0] == size.shape[0]
+        assert key_frames.shape[0] == rotation.shape[0]
+
     def get_param(self, t):
         # Interpolate center and radius.
         center = self.center[-1]
